@@ -4,47 +4,15 @@
 
 ## **Overview**
 
-We have a new user called Adam in dev team and we need to give him access to the cluster resources. As an administrator, setup RBAC to allow Adam to list, create and delete pods in the dev namespace. 
+We have a new user called **Adam** in dev team and we need to give him access to the cluster resources. As an administrator, setup RBAC to allow Adam to list, create and delete pods in the dev namespace. 
 This guide explains how to configure **Role-Based Access Control (RBAC)** in an **Amazon EKS** cluster to allow a new team member to **only create, delete and list pods** in the `dev` namespace.
 
 ---
 
 ## **Step 1: Create an IAM User and Get Their ARN**
 
-Here, we must create a user call **Adam** in the group **dev-group** then attach the **eks:DescribeCluster** policy to the user to allow authentication to EKS.
+Here, we must create a user called **Adam** in the group **dev-group** then attach the **eks:DescribeCluster** policy to the user to allow authentication to EKS. Use the terraform code in the `iam-user-terraform` folder.
 
-At the end we must keep the user **ARN**. We will use a bash script to create a user in a group and attach the defined policy.
-
-**Note:** The script depends on the `jq` package that needs to be installed on your computer.
-Run the following command to install it:
-
-- **On Windows**
-Open Powershell as Administrator and use choco to install the package
-```bash
-choco install jq
-```
-
-- **On Mac**
-Use Homebrew to install the package
-```bash
-brew install jq
-```
-
-- **On Ubuntu**
-Use apt to install the jq package
-```bash
-sudo apt update
-sudo apt install jq
-```
-After successful installation of `jq` you can run the `create-eks-user.sh` script (find the script in this same folder). 
-
-After complete execution, the script will generate a credential file containing the user name, the user ARN, the access keys and secret key for the user to configure AWS CLI and access the cluster. 
-
-```bash
-code Adam_credentials.txt
-# we created a user called Adam in the group dev-group
-```
----
 
 ## **Step 2: Map the IAM User to a Kubernetes User**
 Amazon EKS does not automatically assign permissions to IAM users, so we must update the `aws-auth` ConfigMap.

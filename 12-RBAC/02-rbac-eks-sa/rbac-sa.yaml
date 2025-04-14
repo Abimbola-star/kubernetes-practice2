@@ -1,15 +1,36 @@
+# 1. Namespace
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: dev
+  name: dev-ns
   labels:
-    kubernetes.io/metadata.name: dev
+    kubernetes.io/metadata.name: dev-ns
 ---
+# 2. ServiceAccount 
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dev-sa
+  namespace: dev-ns
+secrets:
+  - name: dev-secret
+---
+# 3. Secret to store the token that will be used by the service account
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dev-secret
+  namespace: dev-ns
+  annotations:
+    kubernetes.io/service-account.name: dev-sa
+type: kubernetes.io/service-account-token
+---
+# 4. Role to set the permissions create and list pods and services
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: create-list-pod-services
-  namespace: "dev" 
+  namespace: dev-ns 
 rules:
   - apiGroups: [""]
     resources: ["pods", "services"]
@@ -21,34 +42,19 @@ rules:
     #    resources: ["clusterroles", "clusterrolebindings"]
     #    verbs: ["create", "get", "list", "watch"]
 ---
+# 5. RoleBinding to bind the role to the service account
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: create-list-pod-services-rb
-  namespace: "dev"
+  namespace: dev-ns
 subjects:
   - kind: ServiceAccount
     name: dev-sa
-    namespace: dev
+    namespace: dev-ns
 roleRef:
   kind: Role
   name: create-list-pod-services
   apiGroup: rbac.authorization.k8s.io
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: dev-sa
-  namespace: "dev"
-secrets:
-  - name: dev-secret
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: dev-secret
-  namespace: "dev"
-  annotations:
-    kubernetes.io/service-account.name: dev-sa
-type: kubernetes.io/service-account-token
+
 

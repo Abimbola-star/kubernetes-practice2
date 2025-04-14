@@ -17,53 +17,25 @@ Steps:
 
 ## **Step 1: Create an IAM User and Get Their ARN**
 
-Here, we must create a user call **paul** in the group **dev-group** then attach the **eks:DescribeCluster** policy to the user to allow authentication to EKS.
-
-At the end we must keep the user **ARN**. We will use a bash script to create a user in a group and attach the defined policy.
-
-**Note:** The script depends on the `jq` package that needs to be installed on your computer.
-Run the following command to install it:
-
-- **On Windows**
-Open Powershell as Administrator and use choco to install the package
-```bash
-choco install jq
-```
-
-- **On Mac**
-Use Homebrew to install the package
-```bash
-brew install jq
-```
-
-- **On Ubuntu**
-Use apt to install the jq package
-```bash
-sudo apt update
-sudo apt install jq
-```
-After successful installation of `jq` you can run the `create-eks-user.sh` script (find the script in this same folder). 
-
-After complete execution, the script will generate a credential file containing the user name, the user ARN, the access keys and secret key for the user to configure AWS CLI and access the cluster. 
-
-```bash
-code paul_credentials.txt
-# we created a user called Adam in the group dev-group
-```
----
+Here, we must create a user called **paul** in the group **dev-group** then attach the **eks:DescribeCluster** policy to the user to allow authentication to EKS. Use the terraform code in the `iam-user-terraform` folder.
 
 ## **Step 2: Create Role, Rolebinding, Service account, Secret(to set up the token for the service account),**
+Here, we will use a single manifest for the various objects just for practice. Here is the list of the objects defined:
+- The namespace `dev-group`
+- The service account `dev-sa` used to identify the subject that will be used in the role
+- The secret `dev-secret` to store the token that will be used by the service account for authentication
+- The role `create-list-pods-services` used to define the permissions (create and list pods and services)
+- The rolebinding `create-list-pods-services-rb` used to bind the role to the serviceaccount.
 
-1. First create the namespace dev in your cluster if it does not yet exist: 
-```bash
-kubectl create ns dev
-```
-
-2. Create the role and the rolebinding, serviceaccount and secret for the user. Create a manifest file and paste the content of `rbac-sa.yaml`
-
-3. Apply the manifest to the cluster:
+Apply the manifest to the cluster and verify the objects created:
 ```bash
 kubectl apply -f rbac-sa.yaml
+kubectl get secret,serviceaccount,role,rolebinding -n dev-ns
+```
+Extract the token that will be used in the next step:
+
+```bash
+kubectl get secret dev-secret -n dev-ns -o jsonpath='{.data.token}' | base64 --decode
 ```
 ---
 
@@ -89,6 +61,10 @@ Example:
 aws eks describe-cluster --name my-cluster --region us-east-1 --query "cluster.endpoint" --output text
 ```
 Copy the value you get and replace the corresponding placeholder in the config template file
+Alternatively, you could use the following command to get the API server URL:
+```bash
+kubectl cluster-info | grep 'Kubernetes control plane' | awk '{print $NF}'
+```
 
 ### Get cluster CA certificate
 Use the command:
@@ -101,10 +77,16 @@ aws eks describe-cluster --name my-cluster --region us-east-1 --query "cluster.c
 ```
 Copy the value you get and replace the corresponding placeholder in the config template file
 
+Alternatively, you could use the following command to get the CA certificate
+
+```bash
+kubectl get secret dev-secret -n dev-ns -o jsonpath='{.data.ca\.crt}'
+```
+
 ### Get the token for Paul
 Use the command:
 ```bash
-kubectl get secret paul-token -n dev-team -o jsonpath='{.data.token}' | base64 --decode
+kubectl get secret dev-secret -n dev-ns -o jsonpath='{.data.token}' | base64 --decode
 ```
 Copy the value you get and replace the corresponding placeholder in the config template file
 
@@ -118,11 +100,11 @@ contexts:
   context:
     cluster: my-cluster
     user: paul
-    namespace: dev
+    namespace: dev-ns
 current-context: paul-context
 ```
 
-The final config file (`paul-kubeconfig.yaml`) as well as the AWS CLI credentials (`paul-credentials.txt`) should be sent to Paul via a secure method depending on the company policies. (e.g., encrypted email, private Slack message)
+The final config file (`paul-kubeconfig.yaml`) should be sent to Paul via a secure method depending on the company policies. (e.g., encrypted email, private Slack message, secure file transfer, password -protected ZIP etc.)
 
 ## **Step 4: Verify the permissions**
 
@@ -137,27 +119,33 @@ export KUBECONFIG=paul-kubeconfig.yaml
 ```
 Verify access
 ```sh
-kubectl auth can-i create pods --namespace=dev
-kubectl auth can-i list pods --namespace=dev
+kubectl auth can-i create pods -n dev-ns
+kubectl auth can-i list pods -n dev-ns
 ```
 
-If set up correctly, the user should be able to **create and list pods** in the `dev` namespace but not perform any other actions.
+If set up correctly, the user should be able to **create and list pods** in the `dev-ns` namespace but not perform any other actions.
 
 ---
 
 ## **Step 5: Verify access (Paul side)
+Create a context for user Paul just for testing.
 
-On Paul's side, he must make sure AWS CLI is installed and configured with access keys and secret keys on his local computer. He must also install `kubectl` to be able to interact with kubernetes clusters.
-1. Configure AWS CLI with IAM User Credentials (generated by the script we ran ealier)
+```bash
+kubectl config set-credentials paul-context --token=$(kubectl get secret dev-secret-sa -n dev-ns -o jsonpath='{.data.token}' | base64 --decode)
+kubectl config set-context paul-context --cluster my-cluster --user paul --namespace dev-ns
+```
+Switch to Paul context
+
+```bash
+kubectl config use-context paul-context
+```
+
+
+On Paul's side, he must install `kubectl` to be able to interact with kubernetes clusters.
+1. verify kubectl installation
 Verify
 ```bash
-aws --version
 kubectl version --client
-aws configure
-# Enter the IAM user's Access Key ID and Secret Access Key.
-# Set the default region to match the EKS cluster's region in this case us-east-1
-aws sts get-caller-identity
-# It should return IAM User ARN.
 ```
 2. Update kubeconfig for Cluster Access
 Paul should save the kubeconfig file on his local environment then set the `KUBECONFIG` environment variable to use the right config file
@@ -170,23 +158,19 @@ export KUBECONFIG=paul-kubeconfig.yaml
 verify access
 ```bash
 kubectl get pods
-kubectl get pods -n dev
-kubectl auth can-i create pods --namespace=dev
-kubectl auth can-i delete pods --namespace=dev
-kubectl auth can-i create deployment --namespace=dev
-kubectl auth can-i delete service --namespace=dev
+kubectl get pods -n dev-ns
+kubectl auth can-i create pods -n dev-ns
+kubectl auth can-i delete pods -n dev-ns
+kubectl auth can-i create deployment -n dev-ns
+kubectl auth can-i delete service -n dev-ns
 ```
 It should return "yes" for the objects he can create or "no" for the ones he cannot create.
 
-If Adam tries to create a deployment or list nodes he will get a Forbidden error.
+If Paul tries to create a deployment or list nodes he will get a Forbidden error.
 
 # Clean Up
 
 At the end of the practice, always delete resources created.
-**Note: If you configured Paul IAM credentials in your terminal to practice this lab, remember to reconfigure aws cli with your normal IAM user account credentials to be able to continue managing your resources.**
-
-To delete the resources created by the `create-eks-user.sh` script, you can use the `delete-eks-user.sh` script present in this same folder.
-You can verify that the user was successfully delete with the command (if the username was Adam):
 
 ```bash
 aws iam get-user --user-name paul
