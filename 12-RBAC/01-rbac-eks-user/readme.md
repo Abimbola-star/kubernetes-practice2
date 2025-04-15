@@ -20,7 +20,7 @@ Amazon EKS does not automatically assign permissions to IAM users or groups, so 
 
 1. Open a terminal and run:
 
-   ```sh
+   ```bash
    eksctl create iamidentitymapping \
   --cluster my-cluster \
   --region us-east-1 \
