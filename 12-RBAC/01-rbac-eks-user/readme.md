@@ -5,6 +5,7 @@
 ## **Overview**
 
 We have a new user called **Adam** in dev team and we need to give him access to the cluster resources. As an administrator, setup RBAC to allow Adam to list, create and delete pods in the dev namespace. 
+
 This guide explains how to configure **Role-Based Access Control (RBAC)** in an **Amazon EKS** cluster to allow a new team member to **only create, delete and list pods** in the `dev` namespace.
 
 ---
@@ -14,39 +15,22 @@ This guide explains how to configure **Role-Based Access Control (RBAC)** in an 
 Here, we must create a user called **Adam** in the group **dev-group** then attach the **eks:DescribeCluster** policy to the user to allow authentication to EKS. Use the terraform code in the `iam-user-terraform` folder.
 
 
-## **Step 2: Map the IAM User to a Kubernetes User**
-Amazon EKS does not automatically assign permissions to IAM users, so we must update the `aws-auth` ConfigMap.
+## **Step 2: Map the IAM group to a Kubernetes group**
+Amazon EKS does not automatically assign permissions to IAM users or groups, so we must update the `aws-auth` ConfigMap.
 
 1. Open a terminal and run:
 
    ```sh
-   kubectl edit configmap aws-auth -n kube-system
+   eksctl create iamidentitymapping \
+  --cluster my-cluster \
+  --region us-east-1 \
+  --arn "arn:aws:iam::123456789012:group/dev-group" \
+  --group dev-group \
+  --username dev-team
    ```
+This command will map the IAM group to a Kubernetes group
 
-2. Add the following entry under the `mapUsers` section:
-
-   ```yaml
-   - userarn: arn:aws:iam::123456789012:user/Adam
-     username: Adam
-     groups:
-       - dev-group
-   ```
-
-   Replace `arn:aws:iam::123456789012:user/new-team-member` with the actual IAM ARN.
-
-**Note:** If there is no section `mapUsers` in the configmap, you can create one in the data section and add the previous content
-
-```yaml
-apiVersion: v1
-data:
-  mapUsers: |
-    - userarn: arn:aws:iam::123456789012:user/Adam
-      username: Adam
-      groups:
-        - dev-group
-```
-
-3. Save and exit.
+   Replace `arn:aws:iam::123456789012:group/dev-group` with the actual IAM ARN.
 
 ---
 
