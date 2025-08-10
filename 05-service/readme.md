@@ -141,7 +141,7 @@ spec:
 
 #### **NodePort**
 - use case: Exposes a service on a static port on each node (nodeport)
-- Accessible from: Outside the cluster via <Node-IP>:<port>
+- Accessible from: Outside the cluster via IP of the node <Node-IP>:<port>
 - Load Balancer: No
 - If the nodeport number is not specified, a random number (30000 - 32767) will be attributed
 
@@ -203,4 +203,5 @@ spec:
   type: ExternalName
   externalName: my.service.example.com
 ```
+
 
